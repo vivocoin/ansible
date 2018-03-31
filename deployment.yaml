@@ -1,0 +1,259 @@
+---
+- hosts: localhost
+  
+  vars:
+    my_ipaddr: "{{ ipaddr }}"
+
+  remote_user: root
+  tasks:
+
+  - name: Install all the VIVO packages
+    shell: apt-get update -y
+
+  - name: Install all the VIVO packages
+    shell: apt-get upgrade -y
+
+  - name: Install all the VIVO packages
+    shell: apt-get dist-upgrade -y
+
+  - name: Install latest version of "nano"
+    apt:
+      name: nano
+      state: latest
+
+  - name: Install latest version of "git"
+    apt:
+      name: git
+      state: latest
+
+  - name: Install latest version of "nano"
+    apt:
+      name: nano
+      state: latest
+  - name: Install latest version of "htop"
+    apt:
+      name: htop
+      state: latest
+
+  - name: Install latest version of "build-essential"
+    apt:
+      name: build-essential
+      state: latest
+
+  - name: Install latest version of "libtool"
+    apt:
+      name: libtool
+      state: latest
+
+  - name: Install latest version of "autotools-dev"
+    apt:
+      name: autotools-dev
+      state: latest
+
+  - name: Install latest version of "automake"
+    apt:
+      name: automake
+      state: latest
+
+  - name: Install latest version of "pkg-config"
+    apt:
+      name:  pkg-config
+      state: latest
+
+  - name: Install latest version of "libssl-dev"
+    apt:
+      name: libssl-dev
+      state: latest
+
+  - name: Install latest version of "libevent-dev"
+    apt:
+      name: libevent-dev
+      state: latest
+
+  - name: Install latest version of "bsdmainutils"
+    apt:
+      name: bsdmainutils
+      state: latest
+
+  - name: Install latest version of "software-properties-common"
+    apt:
+      name: software-properties-common
+      state: latest
+
+  - name: Install latest version of "libboost-all-dev"
+    apt:
+      name: libboost-all-dev
+      state: latest
+
+  - name: Install latest version of "libzmq3-dev"
+    apt:
+      name: libzmq3-dev
+      state: latest
+
+  - name: Install latest version of "libminiupnpc-dev"
+    apt:
+      name: libminiupnpc-dev
+      state: latest
+
+
+  - name: Install latest version of "libevent-dev"
+    apt:
+      name: libevent-dev
+      state: latest
+
+  - name: add-apt repo ppa:bitcoin
+    shell: add-apt-repository ppa:bitcoin/bitcoin
+    
+  - name: update
+    shell: apt-get update
+
+  - name: Install libdb4.8++-dev
+    shell: apt-get install -y libdb4.8-dev libdb4.8++-dev
+
+  - name: Install all the VIVO packages
+    shell: apt-get update -y
+
+  - name: clone repo
+    get_url: 
+      url: https://github.com/vivocoin/vivo/releases/download/v0.12.1.7/Vivo-0.12.1.7-ubuntu16.04.tar.gz
+      dest: /root
+      force_basic_auth: yes
+
+  - name: unarchive file 
+    unarchive:
+      src: /root/Vivo-0.12.1.7-ubuntu16.04.tar.gz
+      dest: /
+
+  - name: strip src folder vivod
+    command: strip vivod
+    args:
+      chdir: /vivo_ubuntu16.04_3_wwf/
+      
+  - name: strip src folder vivo-cli
+    command: strip vivo-cli
+    args:
+      chdir: /vivo_ubuntu16.04_3_wwf/
+      
+  - name: strip src folder vivo-tx
+    command: strip vivo-tx
+    args:
+      chdir: /vivo_ubuntu16.04_3_wwf/
+      
+  - name: Run vivod daemon
+    command: ./vivod -daemon
+    args:
+      chdir: /vivo_ubuntu16.04_3_wwf/ 
+      
+  - name: sleep for 100 seconds and wait for wallet to load
+    wait_for: timeout=100
+    delegate_to: localhost
+      
+  - name: Generate Masternode Key
+    command: ./vivo-cli masternode genkey
+    args:
+      chdir: /vivo_ubuntu16.04_3_wwf/   
+    register: masternodekey
+    
+
+  - name: Stop vivo daemon
+    command: ./vivo-cli stop
+    args:
+      chdir: /vivo_ubuntu16.04_3_wwf/   
+
+
+  - name: modifiy vivocore
+    blockinfile:
+      dest: /root/.vivocore/vivo.conf
+      block: |
+        masternode=1
+        rpcuser=test
+        rpcpassword=test1
+        rpcport=9998
+        bind={{my_ipaddr}}:12845
+        masternodeprivkey={{masternodekey.stdout}}
+ 
+
+  - name: Ansible delete multiple file example
+    file:
+      path: "{{ item }}"
+      state: absent
+    with_items:
+      - ~/.vivocore/mncache.dat
+      - ~/.vivocore/mnpayments.dat
+      
+  - name: Sentinel Install -reindex vivod daemon
+    command: ./vivod -daemon -reindex
+    args:
+      chdir: /vivo_ubuntu16.04_3_wwf/ 
+
+  - name: sleep for 3000 seconds and wait for wallet to sync wallet (50min) Go grab some coffee, read a book, watch Netflix
+    wait_for: timeout=3000
+    delegate_to: localhost
+
+  - name: sleep for 30 seconds and wait for wallet to load
+    wait_for: timeout=30
+    delegate_to: localhost
+
+  - name: Sentinel Install -apt-get update
+    shell: apt-get update
+
+  - name: Sentinel Install -apt-get install python-virtualenv -y
+    shell: apt-get install python-virtualenv -y
+
+  - name: Sentinel Install -clone sentinel repo
+    command: git clone https://github.com/vivocoin/sentinel.git 
+    args:
+      chdir: ~/.vivocore/
+      
+  - name: Sentinel Install -create virtual python environment
+    command: virtualenv venv
+    args:
+      chdir: ~/.vivocore/sentinel
+      
+  - name: Sentinel Install -venv install -r requirements.txt
+    command: venv/bin/pip install -r requirements.txt
+    args:
+      chdir:  ~/.vivocore/sentinel
+      
+  - name: Sentinel Install - Insert in path to your MN's vivo.conf
+    # Replace before the expression till the begin of the file (requires >=2.4)
+    lineinfile:
+      dest: /root/.vivocore/sentinel/sentinel.conf
+      regexp: '#vivo_conf=\/home\/evan82\/.vivocore\/vivo.conf'
+      line: 'vivo_conf=/root/.vivocore/vivo.conf'
+
+  - name: Sentinel Install - start sentinel
+    command: venv/bin/python bin/sentinel.py
+    args:
+      chdir:  ~/.vivocore/sentinel
+
+  - name: sleep for 100 seconds and wait for wallet to sync wallet
+    wait_for: timeout=100
+    delegate_to: localhost
+
+  - name: Sentinel Install - Insert in cronjob
+    lineinfile:
+      dest: /etc/crontab
+      line: '* * * * * cd ~/.vivocore/sentinel && ./venv/bin/python bin/sentinel.py 2>&1 >> sentinel-cron.log'
+
+  - name: sleep for 5 seconds and wait
+    wait_for: timeout=5
+    delegate_to: localhost
+    
+  - name: Sentinel Install - check ./vivo-cli masternode debug output
+    command: ./vivo-cli masternode debug
+    args:
+      chdir: /vivo_ubuntu16.04_3_wwf/  
+
+  - name: Sentinel Install - masternode status
+    command: ./vivo-cli masternode status
+    args:
+      chdir: /vivo_ubuntu16.04_3_wwf/
+    register: mn_stat
+
+  - debug:
+      var: mn_stat
+
+  - debug:
+      var: masternodekey
+
